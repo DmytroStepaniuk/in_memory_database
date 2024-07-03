@@ -4,8 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"sync"
-
-	"github.com/DmytroStepaniuk/in_memory_database/pkg/errorlist"
 )
 
 type operationKind = string
@@ -18,22 +16,9 @@ const (
 
 // InMemDB is an in-memory database
 type InMemDB struct {
-	mutex       sync.RWMutex
-	storage     map[string]string
-	transaction *Transaction
-}
-
-type Transaction struct {
-	changes []change
-	running bool
-}
-
-type change struct {
-	kind      operationKind
-	key       string
-	newValue  *string
-	prevValue *string
-	done      bool
+	mutex              sync.RWMutex
+	storage            map[string]string
+	currentTransaction *Transaction
 }
 
 // New creates a new InMemDB
@@ -45,46 +30,11 @@ func New() *InMemDB {
 
 // CommitTransaction commits the current transaction changes
 func (db *InMemDB) StartTransaction() {
-	db.transaction = &Transaction{running: false}
-	db.mutex.Lock()
-}
-
-// Rollback rolls back the current transaction changes
-func (db *InMemDB) Rollback() (err error) {
-	defer db.mutex.Unlock()
-
-	// clean up transaction
-	// clean up transaction
-	defer func() {
-		db.transaction = nil
-	}()
-
-	errList := errorlist.New()
-
-	for i := len(db.transaction.changes) - 1; i >= 0; i-- {
-		change := db.transaction.changes[i]
-
-		if !change.done {
-			continue
-		}
-
-		switch change.kind {
-		case operationSet:
-			if change.prevValue == nil {
-				err = db.Delete(change.key)
-			} else {
-				err = db.Set(change.key, *change.prevValue)
-			}
-		case operationDelete:
-			err = db.Set(change.key, *change.prevValue)
-		}
-
-		if err != nil {
-			errList.Add(err)
-		}
+	if db.currentTransaction == nil {
+		db.mutex.Lock()
 	}
-
-	return errList.Error()
+	newTransaction := &Transaction{running: false, db: db, parent: db.currentTransaction}
+	db.currentTransaction = newTransaction
 }
 
 // Set sets a key in the database
@@ -93,13 +43,13 @@ func (db *InMemDB) Set(key string, value string) (err error) {
 		err = errors.New("key cannot be empty")
 	}
 
-	if db.transaction != nil && !db.transaction.running {
-		newChange := change{key: key, kind: operationSet, newValue: &value, prevValue: nil, done: false}
-		db.transaction.changes = append(db.transaction.changes, newChange)
-		return nil
+	if db.currentTransaction != nil && !db.currentTransaction.running {
+		prevValue := db.Get(key)
+		newChange := change{key: key, kind: operationSet, newValue: &value, prevValue: &prevValue}
+		db.currentTransaction.changes = append(db.currentTransaction.changes, newChange)
 	}
 
-	if db.transaction == nil {
+	if db.currentTransaction == nil {
 		db.mutex.Lock()
 		defer db.mutex.Unlock()
 	}
@@ -115,30 +65,19 @@ func (db *InMemDB) unsafeSet(key string, value string) {
 }
 
 // Get gets a key from the database
-func (db *InMemDB) Get(key string) (string, error) {
-	if db.transaction == nil {
+func (db *InMemDB) Get(key string) string {
+	if db.currentTransaction == nil {
 		db.mutex.RLock()
 		defer db.mutex.RUnlock()
-	} else {
-		for i := len(db.transaction.changes) - 1; i >= 0; i-- {
-			change := db.transaction.changes[i]
-
-			if change.key == key && change.kind == operationSet {
-				return *change.newValue, nil
-			}
-
-			if change.key == key && change.kind == operationDelete {
-				return "", fmt.Errorf("key %s not found", key)
-			}
-		}
 	}
 
+	// fallback and original call to the storage
 	value, ok := db.storage[key]
 	if !ok {
-		return "", fmt.Errorf("key %s not found", key)
+		return ""
 	}
 
-	return value, nil
+	return value
 }
 
 // Delete deletes a key from the database
@@ -148,13 +87,12 @@ func (db *InMemDB) Delete(key string) (err error) {
 		return fmt.Errorf("key %s not found", key)
 	}
 
-	if db.transaction != nil && !db.transaction.running {
-		newChange := change{key: key, kind: operationDelete, newValue: nil, prevValue: &value, done: false}
-		db.transaction.changes = append(db.transaction.changes, newChange)
-		return nil
+	if db.currentTransaction != nil && !db.currentTransaction.running {
+		newChange := change{key: key, kind: operationDelete, newValue: nil, prevValue: &value}
+		db.currentTransaction.changes = append(db.currentTransaction.changes, newChange)
 	}
 
-	if db.transaction == nil {
+	if db.currentTransaction == nil {
 		db.mutex.Lock()
 		defer db.mutex.Unlock()
 	}
@@ -169,44 +107,32 @@ func (db *InMemDB) unsafeDelete(key string) {
 	delete(db.storage, key)
 }
 
-// Commit commits the current transaction changes
+// Commit commits all transactions
 func (db *InMemDB) Commit() (err error) {
-	if db.transaction == nil {
-		return errors.New("no transaction in progress")
+	if db.currentTransaction == nil {
+		return errors.New("no transaction to commit")
 	}
 
-	defer db.mutex.Unlock()
-
-	// clean up transaction
-	defer func() {
-		if err == nil {
-			db.transaction = nil
-		}
-	}()
-
-	db.transaction.running = true
-
-	for i := 0; i < len(db.transaction.changes); i++ {
-		change := db.transaction.changes[i]
-
-		if change.done {
-			continue
-		}
-
-		switch change.kind {
-		case operationSet:
-			err = db.Set(change.key, *change.newValue)
-		case operationDelete:
-			err = db.Delete(change.key)
-		}
-
-		if err == nil {
-			change.done = true
-		} else {
-			rollbackError := db.Rollback()
-			return errors.Join(rollbackError, err)
-		}
+	if db.currentTransaction.parent == nil {
+		defer db.mutex.Unlock()
 	}
 
-	return nil
+	return db.currentTransaction.Commit()
+}
+
+// Rollback rolls back latest transaction
+func (db *InMemDB) Rollback() (err error) {
+	if db.currentTransaction == nil {
+		return errors.New("no transaction to rollback")
+	}
+
+	if db.currentTransaction.parent == nil {
+		defer db.mutex.Unlock()
+	}
+
+	err = db.currentTransaction.Rollback()
+
+	db.currentTransaction = db.currentTransaction.parent
+
+	return err
 }
