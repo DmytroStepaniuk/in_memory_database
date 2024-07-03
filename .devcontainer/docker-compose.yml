@@ -1,0 +1,25 @@
+version: '3.9'
+
+services:
+  in_memory_database:
+    build:
+      context: .
+      dockerfile: Dockerfile.devcontainer
+    stdin_open: true
+    tty: true
+    environment:
+      HISTFILE: /root/hist/.bash_history # inspired by https://gist.github.com/gido/9b7e323571cf61820bd4baef92e30861
+    volumes:
+      - ../:/app:delegated
+      - ~/.docker:/root/.docker:z
+      - /var/run/docker.sock:/var/run/docker.sock
+      - in_memory_database__go-pkg:/go/pkg
+      - in_memory_database__vscode-extensions:/root/.vscode-server/extensions
+      - ~/.gitconfig:/root/.gitconfig:z
+      - ~/.ssh:/root/.ssh:z
+      - in_memory_database__zsh_history:/root/hist
+volumes:
+  in_memory_database__go-pkg:
+  in_memory_database__vscode-extensions:
+  in_memory_database__zsh_history:
+  in_memory_database__postgres_volume:

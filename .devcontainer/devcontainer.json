@@ -1,0 +1,63 @@
+{
+  "name": "in_memory_database",
+  "dockerComposeFile": "./docker-compose.yml",
+  "service": "in_memory_database",
+  "workspaceFolder": "/app",
+  "shutdownAction": "stopCompose",
+  "postCreateCommand": "go version && go mod download && go mod tidy",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "zsh",
+        "terminal.integrated.defaultProfile.osx": "zsh",
+        "[golang]": {
+          "editor.insertSpaces": true,
+          "editor.tabSize": 2,
+          "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit"
+          }
+        },
+        "editor.formatOnSave": true,
+        "editor.renderWhitespace": "all",
+        "editor.tabSize": 2,
+        "editor.cursorSmoothCaretAnimation": "on",
+        "files.trimTrailingWhitespace": true,
+        // "files.eol": "\n",
+        "files.insertFinalNewline": true,
+        "go.useLanguageServer": true,
+        "go.lintTool": "golangci-lint",
+        "go.lintOnSave": "workspace",
+        "go.vetOnSave": "package",
+        "go.lintFlags": [
+          // "--fast",
+          "--timeout",
+          "5m"
+        ],
+        "go.testFlags": [
+          "-cover",
+          "-race",
+          "-count=1",
+          "-v"
+        ],
+        "gopls": {
+          "formatting.gofumpt": true,
+          "formatting.local": "github.com/DmytroStepaniuk/in_memory_database"
+        },
+        "linter.linters": {
+          "yamllint": {
+            "enabled": true
+          }
+        }
+      },
+      "extensions": [
+        "eamodio.gitlens",
+        "golang.Go",
+        "IBM.output-colorizer",
+        "ms-azuretools.vscode-docker",
+        "Gruntfuggly.todo-tree",
+        "bierner.emojisense",
+        "stkb.rewrap"
+      ]
+    }
+  }
+}
