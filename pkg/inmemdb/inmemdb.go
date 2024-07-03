@@ -53,6 +53,12 @@ func (db *InMemDB) StartTransaction() {
 func (db *InMemDB) Rollback() (err error) {
 	defer db.mutex.Unlock()
 
+	// clean up transaction
+	// clean up transaction
+	defer func() {
+		db.transaction = nil
+	}()
+
 	errList := errorlist.New()
 
 	for i := len(db.transaction.changes) - 1; i >= 0; i-- {
@@ -113,6 +119,18 @@ func (db *InMemDB) Get(key string) (string, error) {
 	if db.transaction == nil {
 		db.mutex.RLock()
 		defer db.mutex.RUnlock()
+	} else {
+		for i := len(db.transaction.changes) - 1; i >= 0; i-- {
+			change := db.transaction.changes[i]
+
+			if change.key == key && change.kind == operationSet {
+				return *change.newValue, nil
+			}
+
+			if change.key == key && change.kind == operationDelete {
+				return "", fmt.Errorf("key %s not found", key)
+			}
+		}
 	}
 
 	value, ok := db.storage[key]
@@ -159,6 +177,7 @@ func (db *InMemDB) Commit() (err error) {
 
 	defer db.mutex.Unlock()
 
+	// clean up transaction
 	defer func() {
 		if err == nil {
 			db.transaction = nil

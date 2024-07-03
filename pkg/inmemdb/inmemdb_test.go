@@ -9,16 +9,6 @@ import (
 )
 
 func TestInMemDB(t *testing.T) {
-	// # Example 2 for roll_back().
-	// db = InMemoryDatabase()
-	// db.set("key1", "value1")
-	// db.start_transaction()
-	// db.get("key1")    -> Expect to get “value1”
-	// db.set("key1", "value2")
-	// db.get("key1")    -> Expect to get ”value2”
-	// db.roll_back()
-	// db.get(“key1”)    -> Expect to get “value1”
-
 	// # Example 3 for nested transactions
 	// db = InMemoryDatabase()
 	// db.set("key1", "value1")
@@ -66,5 +56,40 @@ func TestInMemDB(t *testing.T) {
 		value, err := inMemDb.Get("key1")
 		assert.Nil(t, err)
 		assert.Equal(t, "value2", value)
+	})
+
+	// # Example 2 for roll_back().
+	// db = InMemoryDatabase()
+	// db.set("key1", "value1")
+	// db.start_transaction()
+	// db.get("key1")    -> Expect to get “value1”
+	// db.set("key1", "value2")
+	// db.get("key1")    -> Expect to get ”value2”
+	// db.roll_back()
+	// db.get(“key1”)    -> Expect to get “value1”
+	t.Run("Example 2", func(t *testing.T) {
+		inMemDb := inmemdb.New()
+
+		err = inMemDb.Set("key1", "value1")
+		assert.Nil(t, err)
+
+		inMemDb.StartTransaction()
+		value, err := inMemDb.Get("key1")
+		assert.Nil(t, err)
+		assert.Equal(t, "value1", value)
+
+		err = inMemDb.Set("key1", "value2")
+		assert.Nil(t, err)
+
+		value, err = inMemDb.Get("key1")
+		assert.Nil(t, err)
+		assert.Equal(t, "value2", value)
+
+		err = inMemDb.Rollback()
+		assert.Nil(t, err)
+
+		value, err = inMemDb.Get("key1")
+		assert.Nil(t, err)
+		assert.Equal(t, "value1", value)
 	})
 }
