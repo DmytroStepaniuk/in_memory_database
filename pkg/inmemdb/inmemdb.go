@@ -47,6 +47,7 @@ func (db *InMemDB) Set(key string, value string) (err error) {
 		prevValue := db.Get(key)
 		newChange := change{key: key, kind: operationSet, newValue: &value, prevValue: &prevValue}
 		db.currentTransaction.changes = append(db.currentTransaction.changes, newChange)
+		return nil
 	}
 
 	if db.currentTransaction == nil {
@@ -69,18 +70,18 @@ func (db *InMemDB) Get(key string) string {
 	if db.currentTransaction == nil {
 		db.mutex.RLock()
 		defer db.mutex.RUnlock()
-	} else {
-		for i := len(db.currentTransaction.changes) - 1; i >= 0; i-- {
-			change := db.currentTransaction.changes[i]
+		// } else {
+		// 	for i := len(db.currentTransaction.changes) - 1; i >= 0; i-- {
+		// 		change := db.currentTransaction.changes[i]
 
-			if change.key == key && change.kind == operationSet {
-				return *change.newValue
-			}
+		// 		if change.key == key && change.kind == operationSet {
+		// 			return *change.newValue
+		// 		}
 
-			if change.key == key && change.kind == operationDelete {
-				return *change.prevValue
-			}
-		}
+		// 		if change.key == key && change.kind == operationDelete {
+		// 			return *change.prevValue
+		// 		}
+		// 	}
 	}
 
 	// fallback and original call to the storage
@@ -102,6 +103,7 @@ func (db *InMemDB) Delete(key string) (err error) {
 	if db.currentTransaction != nil && !db.currentTransaction.running {
 		newChange := change{key: key, kind: operationDelete, newValue: nil, prevValue: &value}
 		db.currentTransaction.changes = append(db.currentTransaction.changes, newChange)
+		return nil
 	}
 
 	if db.currentTransaction == nil {
