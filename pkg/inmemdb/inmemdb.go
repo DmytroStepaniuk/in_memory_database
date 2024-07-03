@@ -69,6 +69,18 @@ func (db *InMemDB) Get(key string) string {
 	if db.currentTransaction == nil {
 		db.mutex.RLock()
 		defer db.mutex.RUnlock()
+	} else {
+		for i := len(db.currentTransaction.changes) - 1; i >= 0; i-- {
+			change := db.currentTransaction.changes[i]
+
+			if change.key == key && change.kind == operationSet {
+				return *change.newValue
+			}
+
+			if change.key == key && change.kind == operationDelete {
+				return *change.prevValue
+			}
+		}
 	}
 
 	// fallback and original call to the storage
