@@ -36,6 +36,7 @@ func (db *InMemDB) AnyTransactions() bool {
 	return len(db.transactions) > 0
 }
 
+// FindLastUnfinished returns the last transaction
 func (db *InMemDB) LastTransaction() *Transaction {
 	if len(db.transactions) == 0 {
 		return nil

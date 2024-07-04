@@ -49,6 +49,8 @@ func (tr *Transaction) Commit() (err error) {
 		tr.finished = true
 	}()
 
+	errList := errorlist.New()
+
 	for _, change := range tr.changes {
 		switch change.kind {
 		case operationSet:
@@ -58,11 +60,11 @@ func (tr *Transaction) Commit() (err error) {
 		}
 
 		if err != nil {
-			return err
+			errList.Add(err)
 		}
 	}
 
-	return nil
+	return errList.Error()
 }
 
 func (db *InMemDB) FindLastUnfinished() *Transaction {
