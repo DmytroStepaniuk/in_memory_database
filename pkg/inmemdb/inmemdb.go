@@ -37,7 +37,7 @@ func (db *InMemDB) AnyTransactions() bool {
 }
 
 // FindLastUnfinished returns the last transaction
-func (db *InMemDB) LastTransaction() *Transaction {
+func (db *InMemDB) lastTransaction() *Transaction {
 	if len(db.transactions) == 0 {
 		return nil
 	}
@@ -104,7 +104,7 @@ func (db *InMemDB) Delete(key string) (err error) {
 
 	if db.AnyTransactions() {
 		newChange := change{key: key, kind: operationDelete, newValue: nil, prevValue: &value}
-		db.LastTransaction().changes = append(db.LastTransaction().changes, newChange)
+		db.lastTransaction().changes = append(db.lastTransaction().changes, newChange)
 		return nil
 	}
 
