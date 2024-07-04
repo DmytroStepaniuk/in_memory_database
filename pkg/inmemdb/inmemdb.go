@@ -118,7 +118,7 @@ func (db *InMemDB) unsafeDelete(key string) {
 	delete(db.storage, key)
 }
 
-// Commit commits all transactions
+// Commit commits deepest nested unfinished transaction
 func (db *InMemDB) Commit() (err error) {
 	if !db.anyTransactions() {
 		return errors.New("no transaction to commit")
@@ -127,7 +127,7 @@ func (db *InMemDB) Commit() (err error) {
 	return err
 }
 
-// Rollback rolls back latest transaction
+// Rollback rolls back deepest nested unfinished transaction
 func (db *InMemDB) Rollback() error {
 	if !db.anyTransactions() {
 		return errors.New("no transaction to rollback")
