@@ -32,7 +32,7 @@ func (db *InMemDB) StartTransaction() {
 	db.transactions = append(db.transactions, newTransaction)
 }
 
-func (db *InMemDB) AnyTransactions() bool {
+func (db *InMemDB) anyTransactions() bool {
 	return len(db.transactions) > 0
 }
 
@@ -51,7 +51,7 @@ func (db *InMemDB) Set(key string, value string) (err error) {
 		return errors.New("key cannot be empty")
 	}
 
-	if db.AnyTransactions() {
+	if db.anyTransactions() {
 		prevValue := db.Get(key)
 		newChange := change{key: key, kind: operationSet, newValue: &value, prevValue: prevValue}
 		db.FindLastUnfinished().changes = append(db.FindLastUnfinished().changes, newChange)
@@ -70,7 +70,7 @@ func (db *InMemDB) unsafeSet(key string, value string) {
 
 // Get gets a key from the database
 func (db *InMemDB) Get(key string) *string {
-	if db.AnyTransactions() {
+	if db.anyTransactions() {
 		for i := len(db.transactions) - 1; i >= 0; i-- {
 			current := db.transactions[i]
 
@@ -102,7 +102,7 @@ func (db *InMemDB) Delete(key string) (err error) {
 		return fmt.Errorf("key %s not found", key)
 	}
 
-	if db.AnyTransactions() {
+	if db.anyTransactions() {
 		newChange := change{key: key, kind: operationDelete, newValue: nil, prevValue: &value}
 		db.lastTransaction().changes = append(db.lastTransaction().changes, newChange)
 		return nil
@@ -120,7 +120,7 @@ func (db *InMemDB) unsafeDelete(key string) {
 
 // Commit commits all transactions
 func (db *InMemDB) Commit() (err error) {
-	if !db.AnyTransactions() {
+	if !db.anyTransactions() {
 		return errors.New("no transaction to commit")
 	}
 	err = db.FindLastUnfinished().Commit()
@@ -129,7 +129,7 @@ func (db *InMemDB) Commit() (err error) {
 
 // Rollback rolls back latest transaction
 func (db *InMemDB) Rollback() error {
-	if !db.AnyTransactions() {
+	if !db.anyTransactions() {
 		return errors.New("no transaction to rollback")
 	}
 
