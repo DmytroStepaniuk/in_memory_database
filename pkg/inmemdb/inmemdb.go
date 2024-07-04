@@ -3,7 +3,6 @@ package inmemdb
 import (
 	"errors"
 	"fmt"
-	"sync"
 )
 
 type operationKind = string
@@ -16,9 +15,8 @@ const (
 
 // InMemDB is an in-memory database
 type InMemDB struct {
-	mutex              sync.RWMutex
-	storage            map[string]string
-	currentTransaction *Transaction
+	storage      map[string]string
+	transactions []*Transaction
 }
 
 // New creates a new InMemDB
@@ -30,29 +28,33 @@ func New() *InMemDB {
 
 // CommitTransaction commits the current transaction changes
 func (db *InMemDB) StartTransaction() {
-	if db.currentTransaction == nil {
-		db.mutex.Lock()
+	newTransaction := &Transaction{db: db}
+	db.transactions = append(db.transactions, newTransaction)
+}
+
+func (db *InMemDB) AnyTransactions() bool {
+	return len(db.transactions) > 0
+}
+
+func (db *InMemDB) LastTransaction() *Transaction {
+	if len(db.transactions) == 0 {
+		return nil
 	}
-	newTransaction := &Transaction{running: false, db: db, parent: db.currentTransaction}
-	db.currentTransaction = newTransaction
+
+	return db.transactions[len(db.transactions)-1]
 }
 
 // Set sets a key in the database
 func (db *InMemDB) Set(key string, value string) (err error) {
 	if key == "" {
-		err = errors.New("key cannot be empty")
+		return errors.New("key cannot be empty")
 	}
 
-	if db.currentTransaction != nil && !db.currentTransaction.running {
+	if db.AnyTransactions() {
 		prevValue := db.Get(key)
 		newChange := change{key: key, kind: operationSet, newValue: &value, prevValue: &prevValue}
-		db.currentTransaction.changes = append(db.currentTransaction.changes, newChange)
+		db.FindLastUnfinished().changes = append(db.FindLastUnfinished().changes, newChange)
 		return nil
-	}
-
-	if db.currentTransaction == nil {
-		db.mutex.Lock()
-		defer db.mutex.Unlock()
 	}
 
 	db.unsafeSet(key, value)
@@ -67,21 +69,20 @@ func (db *InMemDB) unsafeSet(key string, value string) {
 
 // Get gets a key from the database
 func (db *InMemDB) Get(key string) string {
-	if db.currentTransaction == nil {
-		db.mutex.RLock()
-		defer db.mutex.RUnlock()
-		// } else {
-		// 	for i := len(db.currentTransaction.changes) - 1; i >= 0; i-- {
-		// 		change := db.currentTransaction.changes[i]
+	if db.AnyTransactions() {
+		for i := len(db.transactions) - 1; i >= 0; i-- {
+			current := db.transactions[i]
 
-		// 		if change.key == key && change.kind == operationSet {
-		// 			return *change.newValue
-		// 		}
+			for _, change := range current.changes {
+				if change.key == key && change.kind == operationSet {
+					return *change.newValue
+				}
 
-		// 		if change.key == key && change.kind == operationDelete {
-		// 			return *change.prevValue
-		// 		}
-		// 	}
+				if change.key == key && change.kind == operationDelete {
+					return ""
+				}
+			}
+		}
 	}
 
 	// fallback and original call to the storage
@@ -100,15 +101,10 @@ func (db *InMemDB) Delete(key string) (err error) {
 		return fmt.Errorf("key %s not found", key)
 	}
 
-	if db.currentTransaction != nil && !db.currentTransaction.running {
+	if db.AnyTransactions() {
 		newChange := change{key: key, kind: operationDelete, newValue: nil, prevValue: &value}
-		db.currentTransaction.changes = append(db.currentTransaction.changes, newChange)
+		db.LastTransaction().changes = append(db.LastTransaction().changes, newChange)
 		return nil
-	}
-
-	if db.currentTransaction == nil {
-		db.mutex.Lock()
-		defer db.mutex.Unlock()
 	}
 
 	db.unsafeDelete(key)
@@ -123,30 +119,22 @@ func (db *InMemDB) unsafeDelete(key string) {
 
 // Commit commits all transactions
 func (db *InMemDB) Commit() (err error) {
-	if db.currentTransaction == nil {
+	if !db.AnyTransactions() {
 		return errors.New("no transaction to commit")
 	}
-
-	if db.currentTransaction.parent == nil {
-		defer db.mutex.Unlock()
-	}
-
-	return db.currentTransaction.Commit()
+	err = db.FindLastUnfinished().Commit()
+	return err
 }
 
 // Rollback rolls back latest transaction
-func (db *InMemDB) Rollback() (err error) {
-	if db.currentTransaction == nil {
+func (db *InMemDB) Rollback() error {
+	if !db.AnyTransactions() {
 		return errors.New("no transaction to rollback")
 	}
 
-	if db.currentTransaction.parent == nil {
-		defer db.mutex.Unlock()
-	}
+	err := db.FindLastUnfinished().Rollback()
 
-	err = db.currentTransaction.Rollback()
-
-	db.currentTransaction = db.currentTransaction.parent
+	db.FindLastUnfinished().changes = []change{}
 
 	return err
 }

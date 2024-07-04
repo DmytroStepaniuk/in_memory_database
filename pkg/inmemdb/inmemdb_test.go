@@ -51,6 +51,7 @@ func TestInMemDB(t *testing.T) {
 		assert.Nil(t, err)
 
 		inMemDb.StartTransaction()
+
 		value := inMemDb.Get("key1")
 		assert.Equal(t, "value1", value)
 

@@ -5,10 +5,9 @@ import (
 )
 
 type Transaction struct {
-	changes []change
-	running bool
-	db      *InMemDB
-	parent  *Transaction
+	changes  []change
+	db       *InMemDB
+	finished bool
 }
 
 type change struct {
@@ -22,8 +21,8 @@ type change struct {
 func (tr *Transaction) Rollback() (err error) {
 	errList := errorlist.New()
 
-	for i := len(tr.db.currentTransaction.changes) - 1; i >= 0; i-- {
-		change := tr.db.currentTransaction.changes[i]
+	for i := len(tr.changes) - 1; i >= 0; i-- {
+		change := tr.changes[i]
 
 		switch change.kind {
 		case operationSet:
@@ -46,8 +45,32 @@ func (tr *Transaction) Rollback() (err error) {
 
 // Commit commits the current transaction changes
 func (tr *Transaction) Commit() (err error) {
-	tr.db.currentTransaction = tr.parent
-	tr = nil
+	defer func() {
+		tr.finished = true
+	}()
+
+	for _, change := range tr.changes {
+		switch change.kind {
+		case operationSet:
+			err = tr.db.Set(change.key, *change.newValue)
+		case operationDelete:
+			err = tr.db.Delete(change.key)
+		}
+
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (db *InMemDB) FindLastUnfinished() *Transaction {
+	for i := len(db.transactions) - 1; i >= 0; i-- {
+		if !db.transactions[i].finished {
+			return db.transactions[i]
+		}
+	}
 
 	return nil
 }
