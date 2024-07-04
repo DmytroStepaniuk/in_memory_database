@@ -31,7 +31,7 @@ func TestInMemDB(t *testing.T) {
 		err = inMemDb.Commit()
 		assert.Nil(t, err)
 
-		value := inMemDb.Get("key1")
+		value := *inMemDb.Get("key1")
 		assert.Equal(t, "value2", value)
 	})
 
@@ -52,20 +52,20 @@ func TestInMemDB(t *testing.T) {
 
 		inMemDb.StartTransaction()
 
-		value := inMemDb.Get("key1")
+		value := *inMemDb.Get("key1")
 		assert.Equal(t, "value1", value)
 
 		err = inMemDb.Set("key1", "value2")
 		assert.Nil(t, err)
 
-		value = inMemDb.Get("key1")
+		value = *inMemDb.Get("key1")
 		assert.Nil(t, err)
 		assert.Equal(t, "value2", value)
 
 		err = inMemDb.Rollback()
 		assert.Nil(t, err)
 
-		value = inMemDb.Get("key1")
+		value = *inMemDb.Get("key1")
 		assert.Nil(t, err)
 		assert.Equal(t, "value1", value)
 	})
@@ -93,12 +93,12 @@ func TestInMemDB(t *testing.T) {
 		err = inMemDb.Set("key1", "value2")
 		assert.Nil(t, err)
 
-		value := inMemDb.Get("key1")
+		value := *inMemDb.Get("key1")
 		assert.Equal(t, "value2", value)
 
 		inMemDb.StartTransaction()
 
-		value = inMemDb.Get("key1")
+		value = *inMemDb.Get("key1")
 		assert.Equal(t, "value2", value)
 
 		err = inMemDb.Delete("key1")
@@ -107,14 +107,14 @@ func TestInMemDB(t *testing.T) {
 		err = inMemDb.Commit()
 		assert.Nil(t, err)
 
-		value = inMemDb.Get("key1")
+		value = *inMemDb.Get("key1")
 		assert.Nil(t, err)
 		assert.Equal(t, "", value)
 
 		err = inMemDb.Commit()
 		assert.Nil(t, err)
 
-		value = inMemDb.Get("key1")
+		value = *inMemDb.Get("key1")
 		assert.Nil(t, err)
 		assert.Equal(t, "", value)
 	})
@@ -143,12 +143,12 @@ func TestInMemDB(t *testing.T) {
 		err = inMemDb.Set("key1", "value2")
 		assert.Nil(t, err)
 
-		value := inMemDb.Get("key1")
+		value := *inMemDb.Get("key1")
 		assert.Equal(t, "value2", value)
 
 		inMemDb.StartTransaction()
 
-		value = inMemDb.Get("key1")
+		value = *inMemDb.Get("key1")
 		assert.Equal(t, "value2", value)
 
 		err = inMemDb.Delete("key1")
@@ -157,14 +157,14 @@ func TestInMemDB(t *testing.T) {
 		err = inMemDb.Rollback()
 		assert.Nil(t, err)
 
-		value = inMemDb.Get("key1")
+		value = *inMemDb.Get("key1")
 		assert.Nil(t, err)
 		assert.Equal(t, "value2", value)
 
 		err = inMemDb.Commit()
 		assert.Nil(t, err)
 
-		value = inMemDb.Get("key1")
+		value = *inMemDb.Get("key1")
 		assert.Nil(t, err)
 		assert.Equal(t, "value2", value)
 	})

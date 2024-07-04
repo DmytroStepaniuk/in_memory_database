@@ -52,7 +52,7 @@ func (db *InMemDB) Set(key string, value string) (err error) {
 
 	if db.AnyTransactions() {
 		prevValue := db.Get(key)
-		newChange := change{key: key, kind: operationSet, newValue: &value, prevValue: &prevValue}
+		newChange := change{key: key, kind: operationSet, newValue: &value, prevValue: prevValue}
 		db.FindLastUnfinished().changes = append(db.FindLastUnfinished().changes, newChange)
 		return nil
 	}
@@ -68,18 +68,18 @@ func (db *InMemDB) unsafeSet(key string, value string) {
 }
 
 // Get gets a key from the database
-func (db *InMemDB) Get(key string) string {
+func (db *InMemDB) Get(key string) *string {
 	if db.AnyTransactions() {
 		for i := len(db.transactions) - 1; i >= 0; i-- {
 			current := db.transactions[i]
 
 			for _, change := range current.changes {
 				if change.key == key && change.kind == operationSet {
-					return *change.newValue
+					return change.newValue
 				}
 
 				if change.key == key && change.kind == operationDelete {
-					return ""
+					return nil
 				}
 			}
 		}
@@ -88,10 +88,10 @@ func (db *InMemDB) Get(key string) string {
 	// fallback and original call to the storage
 	value, ok := db.storage[key]
 	if !ok {
-		return ""
+		return nil
 	}
 
-	return value
+	return &value
 }
 
 // Delete deletes a key from the database
